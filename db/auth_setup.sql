@@ -10,7 +10,7 @@ returns trigger as $$
 begin
   insert into public.profiles (id, username, email, created_at)
   values (
-    new.id,
+    new.id::text,
     coalesce(new.raw_user_meta->>'username', split_part(new.email, '@', 1)),
     new.email,
     now()

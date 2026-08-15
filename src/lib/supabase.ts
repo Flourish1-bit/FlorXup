@@ -293,7 +293,8 @@ class SupabaseService {
       created_at: new Date().toISOString(),
     };
 
-    // If Supabase live is configured, also create auth record
+    // If Supabase live is configured, also create auth record.
+    // Fail fast here so we do not silently mask a database/auth problem with a local-only account.
     if (this.isConfigured && this.client) {
       try {
         await this.client.auth.signUp({
@@ -305,7 +306,8 @@ class SupabaseService {
         });
         await this.client.from('profiles').upsert(newProfile);
       } catch (err) {
-        console.warn('Supabase cloud signup error (continuing with local encrypted state):', err);
+        console.error('Supabase cloud signup error:', err);
+        throw err;
       }
     }
 

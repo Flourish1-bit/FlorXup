@@ -2,7 +2,7 @@
 -- Run this in your Supabase project's SQL editor.
 
 create table if not exists profiles (
-  id uuid primary key,
+  id text primary key,
   username text not null,
   email text,
   phone_number text,
