@@ -30,6 +30,15 @@ export default function App() {
       if (supabaseService.getIsConfigured()) {
         await supabaseService.syncAllAuthProfiles();
       }
+
+      if (currentUser?.id) {
+        const repaired = await supabaseService.ensureProfileKeyForUser(currentUser.id);
+        if (repaired) {
+          setCurrentUser(repaired);
+          supabaseService.setStoredSession(repaired);
+        }
+      }
+
       const allProfiles = await supabaseService.getProfiles();
       setProfiles(allProfiles);
     }

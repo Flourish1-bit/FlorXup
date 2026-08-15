@@ -160,13 +160,11 @@ export const Auth: React.FC<AuthProps> = ({
 
     try {
       setLoading(true);
-      setStatusMessage('Generating ECDH encryption keys for your account...');
       soundEngine.playEncryptedKey();
 
       const keyPair = await generateECDHKeyPair();
       const publicJWK = await exportPublicKeyJWK(keyPair.publicKey);
 
-      setStatusMessage('Creating your secure Florxup account...');
       const userProfile = await supabaseService.signUp({
         username: cleanUsername,
         email: cleanEmail,
@@ -232,16 +230,13 @@ export const Auth: React.FC<AuthProps> = ({
 
     try {
       setLoading(true);
-      setStatusMessage('Generating private encryption keys on your device...');
       soundEngine.playEncryptedKey();
 
-      // 1. Generate client-side ECDH P-256 cryptographic key pair
+      // Generate the client-side key silently in the background.
       const keyPair = await generateECDHKeyPair();
       const publicJWK = await exportPublicKeyJWK(keyPair.publicKey);
 
-      setStatusMessage('Creating your secure Florxup account...');
-      
-      // 2. Register with service
+      // Register with service.
       const userProfile = await supabaseService.signUp({
         username: cleanUsername,
         email: cleanEmail,
@@ -295,11 +290,11 @@ export const Auth: React.FC<AuthProps> = ({
 
       const userProfile = await supabaseService.signIn(cleanIdentifier, signInPassword);
 
-      // Verify or initialize local private key for device
-      setStatusMessage('Loading private encryption keys...');
+      // Keep key repair entirely background-only so the user never sees or changes it.
       const existingKey = await getPrivateKeyFromIndexedDB(userProfile.id);
-      if (!existingKey) {
-        // If logging into a new browser session, generate and re-bind device key
+      const hasPublicKey = !!userProfile.public_key && userProfile.public_key.trim().length > 0;
+
+      if (!existingKey || !hasPublicKey) {
         const keyPair = await generateECDHKeyPair();
         await savePrivateKeyToIndexedDB(userProfile.id, keyPair.privateKey);
         const pubJWK = await exportPublicKeyJWK(keyPair.publicKey);

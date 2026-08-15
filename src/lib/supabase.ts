@@ -377,6 +377,11 @@ class SupabaseService {
             };
             profile = await this.upsertProfile(fallbackProfile);
           }
+
+          if (!profile.public_key || profile.public_key.trim().length === 0) {
+            profile = (await this.ensureProfileKeyForUser(data.user.id)) || profile;
+          }
+
           this.setStoredSession(profile);
           return profile;
         }
@@ -454,6 +459,25 @@ class SupabaseService {
     const { error } = await this.client.rpc('sync_all_auth_users_to_profiles');
     if (error) {
       console.warn('Could not sync auth users to profiles:', error);
+    }
+  }
+
+  async ensureProfileKeyForUser(userId: string): Promise<UserProfile | null> {
+    const profile = await this.getProfile(userId);
+    if (!profile) return null;
+    if (profile.public_key && profile.public_key.trim().length > 0) return profile;
+
+    try {
+      const { generateECDHKeyPair, exportPublicKeyJWK, savePrivateKeyToIndexedDB } = await import('../lib/crypto');
+      const keyPair = await generateECDHKeyPair();
+      await savePrivateKeyToIndexedDB(userId, keyPair.privateKey);
+      const publicJwk = await exportPublicKeyJWK(keyPair.publicKey);
+      const updated = { ...profile, public_key: publicJwk };
+      await this.upsertProfile(updated);
+      return updated;
+    } catch (err) {
+      console.warn('Failed to auto-generate profile key for user:', userId, err);
+      return profile;
     }
   }
 
