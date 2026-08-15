@@ -1,0 +1,6 @@
+{
+  "name": "Florxup",
+  "description": "WhatsApp-style social chatting and information-sharing web application with end-to-end encrypted private messaging and a real-time global community hub for the Code for Humanity Hackathon.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
