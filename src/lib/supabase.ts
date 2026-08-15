@@ -453,6 +453,51 @@ class SupabaseService {
   // Profile Management
   // --------------------------------------------------------------------------
 
+  private ensureLocalSeedProfiles(): UserProfile[] {
+    if (this.localUsers.length > 0) {
+      return this.localUsers.map((u) => u.profile);
+    }
+
+    const seedUsers: UserAccountCredentials[] = [
+      {
+        id: 'usr_alex_dev',
+        username: 'alex_dev',
+        email: 'alex@codeforhumanity.org',
+        passwordHash: btoa('florxup2026'),
+        profile: {
+          id: 'usr_alex_dev',
+          username: 'alex_dev',
+          email: 'alex@codeforhumanity.org',
+          status_bio: 'E2EE & Distributed Systems Lead 🛡️',
+          public_key: '{"kty":"EC","crv":"P-256","x":"W-m6zCgQvJzU9k6mS9oK8L7yX5w2P1n0A9b8C7d6E5f","y":"M4n3P2q1R0s9T8u7V6w5X4y3Z2a1B0c9D8e7F6g5H4i"}',
+          is_online: true,
+          last_seen: new Date().toISOString(),
+          created_at: new Date(Date.now() - 86400000).toISOString(),
+        },
+      },
+      {
+        id: 'usr_maya_chen',
+        username: 'maya_chen',
+        email: 'maya@openhumanity.io',
+        passwordHash: btoa('florxup2026'),
+        profile: {
+          id: 'usr_maya_chen',
+          username: 'maya_chen',
+          email: 'maya@openhumanity.io',
+          status_bio: 'Building open-source tech for humanity 🌍',
+          public_key: '{"kty":"EC","crv":"P-256","x":"K7n8P9q0R1s2T3u4V5w6X7y8Z9a0B1c2D3e4F5g6H7i","y":"A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0U1v"}',
+          is_online: true,
+          last_seen: new Date().toISOString(),
+          created_at: new Date(Date.now() - 43200000).toISOString(),
+        },
+      },
+    ];
+
+    this.localUsers = seedUsers;
+    this.saveToStorage();
+    return seedUsers.map((u) => u.profile);
+  }
+
   async syncAllAuthProfiles(): Promise<void> {
     if (!this.isConfigured || !this.client) return;
 
@@ -483,20 +528,29 @@ class SupabaseService {
 
   async getProfiles(): Promise<UserProfile[]> {
     if (this.isConfigured && this.client) {
-      const { data, error } = await this.client.from('profiles').select('*').order('username');
-      if (!error && data) {
-        const repaired = await Promise.all(
-          data.map(async (profile) => {
-            if (!profile.public_key || profile.public_key.trim().length === 0) {
-              const fixed = await this.ensureProfileKeyForUser(profile.id);
-              return fixed || profile;
-            }
-            return profile;
-          })
-        );
-        return repaired;
+      try {
+        const { data, error } = await this.client.from('profiles').select('*').order('username');
+        if (!error && data && data.length > 0) {
+          const repaired = await Promise.all(
+            data.map(async (profile) => {
+              if (!profile.public_key || profile.public_key.trim().length === 0) {
+                const fixed = await this.ensureProfileKeyForUser(profile.id);
+                return fixed || profile;
+              }
+              return profile;
+            })
+          );
+          return repaired;
+        }
+      } catch (err) {
+        console.warn('Could not load profiles from Supabase, using local fallback:', err);
       }
     }
+
+    if (this.localUsers.length === 0) {
+      return this.ensureLocalSeedProfiles();
+    }
+
     return this.localUsers.map((u) => u.profile);
   }
 
