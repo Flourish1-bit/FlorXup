@@ -484,8 +484,17 @@ class SupabaseService {
   async getProfiles(): Promise<UserProfile[]> {
     if (this.isConfigured && this.client) {
       const { data, error } = await this.client.from('profiles').select('*').order('username');
-      if (!error && data && data.length > 0) {
-        return data;
+      if (!error && data) {
+        const repaired = await Promise.all(
+          data.map(async (profile) => {
+            if (!profile.public_key || profile.public_key.trim().length === 0) {
+              const fixed = await this.ensureProfileKeyForUser(profile.id);
+              return fixed || profile;
+            }
+            return profile;
+          })
+        );
+        return repaired;
       }
     }
     return this.localUsers.map((u) => u.profile);

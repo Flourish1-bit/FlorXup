@@ -68,8 +68,16 @@ export const PrivateChat: React.FC<PrivateChatProps> = ({
       setKeyError(null);
 
       try {
-        if (!recipient.public_key) {
-          throw new Error(`Recipient @${recipient.username} is not ready for private messaging.`);
+        let recipientProfile = recipient;
+        if (!recipientProfile.public_key || recipientProfile.public_key.trim().length === 0) {
+          const repairedRecipient = await supabaseService.ensureProfileKeyForUser(recipientProfile.id);
+          if (repairedRecipient) {
+            recipientProfile = repairedRecipient;
+          }
+        }
+
+        if (!recipientProfile.public_key || recipientProfile.public_key.trim().length === 0) {
+          throw new Error(`Recipient @${recipientProfile.username} is not ready for private messaging.`);
         }
 
         const localPrivateKey = await loadPrivateKeyFromIndexedDB(currentUser.id);
@@ -80,7 +88,7 @@ export const PrivateChat: React.FC<PrivateChatProps> = ({
         const derivedSharedKey = await getSharedSecretKey(
           currentUser.id,
           localPrivateKey,
-          recipient.public_key
+          recipientProfile.public_key
         );
 
         if (isMounted) {
