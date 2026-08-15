@@ -27,6 +27,9 @@ export default function App() {
   // Load profiles on mount & listen for real-time updates
   useEffect(() => {
     async function loadData() {
+      if (supabaseService.getIsConfigured()) {
+        await supabaseService.syncAllAuthProfiles();
+      }
       const allProfiles = await supabaseService.getProfiles();
       setProfiles(allProfiles);
     }

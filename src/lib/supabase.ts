@@ -274,14 +274,15 @@ class SupabaseService {
       }
     }
 
-    const userId =
+    const fallbackUserId =
       'usr_' +
       cleanUsername.toLowerCase().replace(/[^a-z0-9]/g, '_') +
       '_' +
       Math.random().toString(36).substring(2, 7);
 
-    const newProfile: UserProfile = {
-      id: userId,
+    let authUserId = fallbackUserId;
+    let newProfile: UserProfile = {
+      id: fallbackUserId,
       username: cleanUsername,
       email: cleanEmail,
       phone_number: cleanPhone || undefined,
@@ -293,17 +294,36 @@ class SupabaseService {
       created_at: new Date().toISOString(),
     };
 
-    // If Supabase live is configured, also create auth record.
-    // Fail fast here so we do not silently mask a database/auth problem with a local-only account.
+    // If Supabase live is configured, create the Auth user first and use that auth UUID as the profile id.
     if (this.isConfigured && this.client) {
       try {
-        await this.client.auth.signUp({
+        const { data, error } = await this.client.auth.signUp({
           email: cleanEmail,
           password: params.password,
           options: {
             data: { username: cleanUsername, phone_number: cleanPhone },
           },
         });
+
+        if (error) throw error;
+        if (data.user?.id) {
+          authUserId = data.user.id;
+        }
+
+        newProfile = {
+          ...newProfile,
+          id: authUserId,
+          username: cleanUsername,
+          email: cleanEmail,
+          phone_number: cleanPhone || undefined,
+          avatar_url: params.avatarUrl || null,
+          status_bio: params.statusBio?.trim() || 'Building for Humanity with Florxup 🚀',
+          public_key: params.publicKey,
+          is_online: true,
+          last_seen: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        };
+
         await this.client.from('profiles').upsert(newProfile);
       } catch (err) {
         console.error('Supabase cloud signup error:', err);
@@ -313,7 +333,7 @@ class SupabaseService {
 
     // Save user credential
     this.localUsers.push({
-      id: userId,
+      id: authUserId,
       username: cleanUsername,
       email: cleanEmail,
       phone_number: cleanPhone || undefined,
@@ -341,11 +361,24 @@ class SupabaseService {
         });
 
         if (!error && data.user) {
-          const profile = await this.getProfile(data.user.id);
-          if (profile) {
-            this.setStoredSession(profile);
-            return profile;
+          let profile = await this.getProfile(data.user.id);
+          if (!profile) {
+            const fallbackProfile: UserProfile = {
+              id: data.user.id,
+              username: data.user.user_metadata?.username || cleanIdentifier.split('@')[0],
+              email: data.user.email || cleanIdentifier,
+              phone_number: data.user.phone || undefined,
+              avatar_url: data.user.user_metadata?.avatar_url || null,
+              status_bio: data.user.user_metadata?.status_bio || 'Building for Humanity with Florxup 🚀',
+              public_key: data.user.user_metadata?.public_key || '',
+              is_online: true,
+              last_seen: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+            };
+            profile = await this.upsertProfile(fallbackProfile);
           }
+          this.setStoredSession(profile);
+          return profile;
         }
       } catch (e) {
         console.warn('Cloud sign-in attempt error:', e);
@@ -414,6 +447,15 @@ class SupabaseService {
   // --------------------------------------------------------------------------
   // Profile Management
   // --------------------------------------------------------------------------
+
+  async syncAllAuthProfiles(): Promise<void> {
+    if (!this.isConfigured || !this.client) return;
+
+    const { error } = await this.client.rpc('sync_all_auth_users_to_profiles');
+    if (error) {
+      console.warn('Could not sync auth users to profiles:', error);
+    }
+  }
 
   async getProfiles(): Promise<UserProfile[]> {
     if (this.isConfigured && this.client) {
