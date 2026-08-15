@@ -324,7 +324,17 @@ class SupabaseService {
           created_at: new Date().toISOString(),
         };
 
-        await this.client.from('profiles').upsert(newProfile);
+        const { data: profileRow, error: profileError } = await this.client
+          .from('profiles')
+          .upsert(newProfile, { onConflict: 'id' })
+          .select()
+          .single();
+
+        if (profileError) {
+          console.warn('Profile upsert failed; keeping local fallback visible:', profileError);
+        } else if (profileRow) {
+          newProfile = profileRow;
+        }
       } catch (err) {
         console.error('Supabase cloud signup error:', err);
         throw err;
@@ -501,9 +511,33 @@ class SupabaseService {
   async syncAllAuthProfiles(): Promise<void> {
     if (!this.isConfigured || !this.client) return;
 
-    const { error } = await this.client.rpc('sync_all_auth_users_to_profiles');
-    if (error) {
-      console.warn('Could not sync auth users to profiles:', error);
+    try {
+      const { error: rpcError } = await this.client.rpc('sync_all_auth_users_to_profiles');
+      if (rpcError) {
+        console.warn('Could not sync auth users to profiles via RPC:', rpcError);
+      }
+
+      const { data, error } = await this.client.from('profiles').select('*').order('username');
+      if (!error && data) {
+        for (const profile of data) {
+          const idx = this.localUsers.findIndex((u) => u.id === profile.id);
+          if (idx >= 0) {
+            this.localUsers[idx].profile = { ...this.localUsers[idx].profile, ...profile };
+          } else {
+            this.localUsers.push({
+              id: profile.id,
+              username: profile.username,
+              email: profile.email || `${profile.username.toLowerCase()}@florxup.local`,
+              phone_number: profile.phone_number,
+              passwordHash: '',
+              profile,
+            });
+          }
+        }
+        this.saveToStorage();
+      }
+    } catch (err) {
+      console.warn('Profile sync failed:', err);
     }
   }
 
@@ -541,6 +575,13 @@ class SupabaseService {
             })
           );
           return repaired;
+        }
+
+        if (!error && data && data.length === 0) {
+          await this.syncAllAuthProfiles();
+          if (this.localUsers.length > 0) {
+            return this.localUsers.map((u) => u.profile);
+          }
         }
       } catch (err) {
         console.warn('Could not load profiles from Supabase, using local fallback:', err);
