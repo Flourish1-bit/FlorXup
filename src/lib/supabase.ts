@@ -771,6 +771,7 @@ class SupabaseService {
       const { data, error } = await this.client
         .from('private_messages')
         .insert({
+          id: newMessage.id,
           sender_id: senderId,
           recipient_id: recipientId,
           ciphertext,
