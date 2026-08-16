@@ -208,6 +208,31 @@ class SupabaseService {
     return this.client;
   }
 
+  private isValidSupabaseUuid(value?: string | null): boolean {
+    if (!value) return false;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  }
+
+  private async getAuthenticatedUserId(): Promise<string | null> {
+    if (!this.isConfigured || !this.client) return null;
+
+    try {
+      const { data: sessionData, error: sessionError } = await this.client.auth.getSession();
+      if (!sessionError && sessionData.session?.user?.id) {
+        return sessionData.session.user.id;
+      }
+
+      const { data: userData, error: userError } = await this.client.auth.getUser();
+      if (!userError && userData.user?.id) {
+        return userData.user.id;
+      }
+    } catch (err) {
+      console.warn('Could not resolve authenticated Supabase user:', err);
+    }
+
+    return null;
+  }
+
   // --------------------------------------------------------------------------
   // Authentication: Sign Up & Sign In
   // --------------------------------------------------------------------------
@@ -596,20 +621,27 @@ class SupabaseService {
   }
 
   async getProfile(id: string): Promise<UserProfile | null> {
-    if (this.isConfigured && this.client) {
-      const { data } = await this.client.from('profiles').select('*').eq('id', id).single();
-      if (data) return data;
+    if (this.isConfigured && this.client && this.isValidSupabaseUuid(id)) {
+      try {
+        const { data, error } = await this.client.from('profiles').select('*').eq('id', id).single();
+        if (!error && data) return data;
+      } catch (err) {
+        console.warn('Profile lookup failed for valid UUID:', id, err);
+      }
     }
     const acc = this.localUsers.find((u) => u.id === id);
     return acc ? acc.profile : null;
   }
 
   async upsertProfile(profile: UserProfile): Promise<UserProfile> {
-    if (this.isConfigured && this.client) {
-      const { data, error } = await this.client.from('profiles').upsert(profile).select().single();
-      if (!error && data) {
-        this.emit('profile_updated', data);
-        return data;
+    if (this.isConfigured && this.client && this.isValidSupabaseUuid(profile.id)) {
+      const authUserId = await this.getAuthenticatedUserId();
+      if (authUserId && authUserId === profile.id) {
+        const { data, error } = await this.client.from('profiles').upsert(profile).select().single();
+        if (!error && data) {
+          this.emit('profile_updated', data);
+          return data;
+        }
       }
     }
 
@@ -662,13 +694,16 @@ class SupabaseService {
   async addContact(userId: string, contactId: string): Promise<boolean> {
     if (userId === contactId) return false;
 
-    if (this.isConfigured && this.client) {
-      const { error } = await this.client
-        .from('contacts')
-        .upsert({ user_id: userId, contact_id: contactId });
-      if (!error) {
-        this.emit(`contacts_${userId}`, { type: 'added', contactId });
-        return true;
+    if (this.isConfigured && this.client && this.isValidSupabaseUuid(userId) && this.isValidSupabaseUuid(contactId)) {
+      const authUserId = await this.getAuthenticatedUserId();
+      if (authUserId && authUserId === userId) {
+        const { error } = await this.client
+          .from('contacts')
+          .upsert({ user_id: userId, contact_id: contactId });
+        if (!error) {
+          this.emit(`contacts_${userId}`, { type: 'added', contactId });
+          return true;
+        }
       }
     }
 
@@ -682,15 +717,18 @@ class SupabaseService {
   }
 
   async removeContact(userId: string, contactId: string): Promise<boolean> {
-    if (this.isConfigured && this.client) {
-      const { error } = await this.client
-        .from('contacts')
-        .delete()
-        .eq('user_id', userId)
-        .eq('contact_id', contactId);
-      if (!error) {
-        this.emit(`contacts_${userId}`, { type: 'removed', contactId });
-        return true;
+    if (this.isConfigured && this.client && this.isValidSupabaseUuid(userId) && this.isValidSupabaseUuid(contactId)) {
+      const authUserId = await this.getAuthenticatedUserId();
+      if (authUserId && authUserId === userId) {
+        const { error } = await this.client
+          .from('contacts')
+          .delete()
+          .eq('user_id', userId)
+          .eq('contact_id', contactId);
+        if (!error) {
+          this.emit(`contacts_${userId}`, { type: 'removed', contactId });
+          return true;
+        }
       }
     }
 
@@ -767,24 +805,32 @@ class SupabaseService {
       status: 'sent',
     };
 
-    if (this.isConfigured && this.client) {
-      const { data, error } = await this.client
-        .from('private_messages')
-        .insert({
-          id: newMessage.id,
-          sender_id: senderId,
-          recipient_id: recipientId,
-          ciphertext,
-          iv,
-        })
-        .select()
-        .single();
+    if (
+      this.isConfigured &&
+      this.client &&
+      this.isValidSupabaseUuid(senderId) &&
+      this.isValidSupabaseUuid(recipientId)
+    ) {
+      const authUserId = await this.getAuthenticatedUserId();
+      if (authUserId && authUserId === senderId) {
+        const { data, error } = await this.client
+          .from('private_messages')
+          .insert({
+            id: newMessage.id,
+            sender_id: senderId,
+            recipient_id: recipientId,
+            ciphertext,
+            iv,
+          })
+          .select()
+          .single();
 
-      if (!error && data) {
-        const savedMsg = { ...data, decryptedContent: plainForLocalSender };
-        this.emit(`private_${recipientId}`, savedMsg);
-        this.emit(`private_${senderId}`, savedMsg);
-        return savedMsg;
+        if (!error && data) {
+          const savedMsg = { ...data, decryptedContent: plainForLocalSender };
+          this.emit(`private_${recipientId}`, savedMsg);
+          this.emit(`private_${senderId}`, savedMsg);
+          return savedMsg;
+        }
       }
     }
 
@@ -839,22 +885,25 @@ class SupabaseService {
       created_at: new Date().toISOString(),
     };
 
-    if (this.isConfigured && this.client) {
-      const { data, error } = await this.client
-        .from('global_dev_messages')
-        .insert({
-          sender_id: senderId,
-          content,
-          message_type: messageType,
-          tags,
-          reactions: {},
-        })
-        .select('*, sender:profiles(*)')
-        .single();
+    if (this.isConfigured && this.client && this.isValidSupabaseUuid(senderId)) {
+      const authUserId = await this.getAuthenticatedUserId();
+      if (authUserId && authUserId === senderId) {
+        const { data, error } = await this.client
+          .from('global_dev_messages')
+          .insert({
+            sender_id: senderId,
+            content,
+            message_type: messageType,
+            tags,
+            reactions: {},
+          })
+          .select('*, sender:profiles(*)')
+          .single();
 
-      if (!error && data) {
-        this.emit('global_message', data);
-        return data;
+        if (!error && data) {
+          this.emit('global_message', data);
+          return data;
+        }
       }
     }
 
