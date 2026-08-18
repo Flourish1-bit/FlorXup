@@ -299,88 +299,81 @@ class SupabaseService {
       }
     }
 
-    const fallbackUserId =
-      'usr_' +
-      cleanUsername.toLowerCase().replace(/[^a-z0-9]/g, '_') +
-      '_' +
-      Math.random().toString(36).substring(2, 7);
-
-    let authUserId = fallbackUserId;
-    let newProfile: UserProfile = {
-      id: fallbackUserId,
-      username: cleanUsername,
-      email: cleanEmail,
-      phone_number: cleanPhone || undefined,
-      avatar_url: params.avatarUrl || null,
-      status_bio: params.statusBio?.trim() || 'Building for Humanity with Florxup 🚀',
-      public_key: params.publicKey,
-      is_online: true,
-      last_seen: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-    };
-
-    // If Supabase live is configured, create the Auth user first and use that auth UUID as the profile id.
-    if (this.isConfigured && this.client) {
-      try {
-        const { data, error } = await this.client.auth.signUp({
-          email: cleanEmail,
-          password: params.password,
-          options: {
-            data: { username: cleanUsername, phone_number: cleanPhone },
-          },
-        });
-
-        if (error) throw error;
-        if (data.user?.id) {
-          authUserId = data.user.id;
-        }
-
-        newProfile = {
-          ...newProfile,
-          id: authUserId,
-          username: cleanUsername,
-          email: cleanEmail,
-          phone_number: cleanPhone || undefined,
-          avatar_url: params.avatarUrl || null,
-          status_bio: params.statusBio?.trim() || 'Building for Humanity with Florxup 🚀',
-          public_key: params.publicKey,
-          is_online: true,
-          last_seen: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-        };
-
-        const { data: profileRow, error: profileError } = await this.client
-          .from('profiles')
-          .upsert(newProfile, { onConflict: 'id' })
-          .select()
-          .single();
-
-        if (profileError) {
-          console.warn('Profile upsert failed; keeping local fallback visible:', profileError);
-        } else if (profileRow) {
-          newProfile = profileRow;
-        }
-      } catch (err) {
-        console.error('Supabase cloud signup error:', err);
-        throw err;
-      }
+    // REQUIRE Supabase live to sign up - no fallback custom IDs allowed
+    if (!this.isConfigured || !this.client) {
+      throw new Error('Supabase is not configured. Please configure your Supabase credentials first.');
     }
 
-    // Save user credential
+    let authUserId = '';
+    let newProfile: UserProfile | null = null;
+
+    try {
+      const { data, error } = await this.client.auth.signUp({
+        email: cleanEmail,
+        password: params.password,
+        options: {
+          data: { username: cleanUsername, phone_number: cleanPhone },
+        },
+      });
+
+      if (error) throw error;
+      if (!data.user?.id) {
+        throw new Error('Supabase Auth did not return a user ID. Signup failed.');
+      }
+
+      authUserId = data.user.id;
+
+      // Verify the ID is a real UUID
+      if (!this.isValidSupabaseUuid(authUserId)) {
+        throw new Error(`Invalid Supabase user ID: ${authUserId}. Expected a real UUID.`);
+      }
+
+      newProfile = {
+        id: authUserId,
+        username: cleanUsername,
+        email: cleanEmail,
+        phone_number: cleanPhone || undefined,
+        avatar_url: params.avatarUrl || null,
+        status_bio: params.statusBio?.trim() || 'Building for Humanity with Florxup 🚀',
+        public_key: params.publicKey,
+        is_online: true,
+        last_seen: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      };
+
+      const { data: profileRow, error: profileError } = await this.client
+        .from('profiles')
+        .upsert(newProfile, { onConflict: 'id' })
+        .select()
+        .single();
+
+      if (profileError) {
+        throw new Error(`Profile creation failed: ${profileError.message}`);
+      }
+
+      if (profileRow) {
+        newProfile = profileRow;
+      }
+    } catch (err) {
+      console.error('Supabase cloud signup error:', err);
+      throw err;
+    }
+
+    // Save user credential (authUserId is guaranteed to be a real UUID at this point)
     this.localUsers.push({
       id: authUserId,
       username: cleanUsername,
       email: cleanEmail,
       phone_number: cleanPhone || undefined,
       passwordHash: btoa(params.password),
-      profile: newProfile,
+      profile: newProfile!,
     });
 
     this.saveToStorage();
-    this.setStoredSession(newProfile);
-    this.emit('profile_updated', newProfile);
+    this.setStoredSession(newProfile!);
+    this.emit('profile_updated', newProfile!);
 
-    return newProfile;
+    return newProfile!;
   }
 
   public async signIn(identifier: string, password: string): Promise<UserProfile> {
