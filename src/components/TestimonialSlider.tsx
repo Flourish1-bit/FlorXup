@@ -120,11 +120,13 @@ export const TestimonialSlider: React.FC = () => {
     if (!client) return;
 
     let mounted = true;
-    client
-      .from('testimonials')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .then((res: any) => {
+    const loadTestimonials = async () => {
+      try {
+        const res: any = await client
+          .from('testimonials')
+          .select('*')
+          .order('created_at', { ascending: false });
+
         if (!mounted) return;
         if (res.error) {
           console.warn('Could not load testimonials from Supabase:', res.error);
@@ -134,8 +136,12 @@ export const TestimonialSlider: React.FC = () => {
           setTestimonials(res.data as Testimonial[]);
           setCurrentIndex(0);
         }
-      })
-      .catch((err: any) => console.warn('Supabase fetch error:', err));
+      } catch (err: any) {
+        console.warn('Supabase fetch error:', err);
+      }
+    };
+
+    loadTestimonials();
 
     return () => {
       mounted = false;

@@ -809,7 +809,6 @@ class SupabaseService {
         const { data, error } = await this.client
           .from('private_messages')
           .insert({
-            id: newMessage.id,
             sender_id: senderId,
             recipient_id: recipientId,
             ciphertext,
@@ -818,13 +817,21 @@ class SupabaseService {
           .select()
           .single();
 
-        if (!error && data) {
+          if (error) {
+            throw new Error(`Message delivery failed: ${error.message}`);
+          }
+
+          if (data) {
           const savedMsg = { ...data, decryptedContent: plainForLocalSender };
           this.emit(`private_${recipientId}`, savedMsg);
           this.emit(`private_${senderId}`, savedMsg);
           return savedMsg;
         }
       }
+
+        if (!authUserId) {
+          throw new Error('Your Supabase session has expired. Please sign in again.');
+        }
     }
 
     this.localPrivateMessages.push(newMessage);
@@ -832,6 +839,58 @@ class SupabaseService {
     this.emit(`private_${recipientId}`, newMessage);
     this.emit(`private_${senderId}`, newMessage);
     return newMessage;
+  }
+
+  async markMessageDelivered(messageId: string, recipientId: string): Promise<void> {
+    const deliveredAt = new Date().toISOString();
+
+    if (this.isConfigured && this.client && this.isValidSupabaseUuid(messageId)) {
+      const { error } = await this.client
+        .from('private_messages')
+        .update({ is_delivered: true, delivered_at: deliveredAt })
+        .eq('id', messageId)
+        .eq('recipient_id', recipientId);
+
+      if (error) throw new Error(`Could not mark message delivered: ${error.message}`);
+      return;
+    }
+
+    const localMessage = this.localPrivateMessages.find((message) => message.id === messageId);
+    if (localMessage) {
+      localMessage.is_delivered = true;
+      localMessage.delivered_at = deliveredAt;
+      localMessage.status = 'delivered';
+      this.saveToStorage();
+      this.emit(`private_${localMessage.sender_id}`, localMessage);
+    }
+  }
+
+  async markMessageRead(messageId: string, readerId: string): Promise<void> {
+    const readAt = new Date().toISOString();
+
+    if (this.isConfigured && this.client && this.isValidSupabaseUuid(messageId)) {
+      const { error } = await this.client
+        .from('private_messages')
+        .update({ is_read: true, read_at: readAt })
+        .eq('id', messageId)
+        .eq('recipient_id', readerId);
+
+      if (error) throw new Error(`Could not mark message read: ${error.message}`);
+      return;
+    }
+
+    const localMessage = this.localPrivateMessages.find(
+      (message) => message.id === messageId && message.recipient_id === readerId
+    );
+    if (localMessage) {
+      localMessage.is_delivered = true;
+      localMessage.is_read = true;
+      localMessage.delivered_at = localMessage.delivered_at || readAt;
+      localMessage.read_at = readAt;
+      localMessage.status = 'read';
+      this.saveToStorage();
+      this.emit(`private_${localMessage.sender_id}`, localMessage);
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -1133,7 +1192,7 @@ class SupabaseService {
           .channel(`realtime_${channel}`)
           .on(
             'postgres_changes',
-            { event: 'INSERT', schema: 'public', table: 'private_messages' },
+            { event: '*', schema: 'public', table: 'private_messages' },
             (payload) => {
               callback(payload.new);
             }

@@ -114,6 +114,12 @@ export const PrivateChat: React.FC<PrivateChatProps> = ({
           setMessages(decryptedList);
           setLoading(false);
         }
+
+        await Promise.all(
+          rawMsgs
+            .filter((msg) => msg.recipient_id === currentUser.id && !msg.is_read)
+            .map((msg) => supabaseService.markMessageRead(msg.id, currentUser.id))
+        );
       } catch (err: any) {
         console.error('Crypto session error:', err);
         if (isMounted) {
@@ -147,11 +153,22 @@ export const PrivateChat: React.FC<PrivateChatProps> = ({
 
         const resolved = { ...newMsg, decryptedContent: plain };
         setMessages((prev) => {
-          if (prev.some((m) => m.id === resolved.id)) return prev;
+          const existingIndex = prev.findIndex((m) => m.id === resolved.id);
+          if (existingIndex >= 0) {
+            const next = [...prev];
+            next[existingIndex] = { ...next[existingIndex], ...resolved };
+            return next;
+          }
           return [...prev, resolved];
         });
 
         if (newMsg.sender_id === recipient.id) {
+          try {
+            await supabaseService.markMessageDelivered(newMsg.id, currentUser.id);
+            await supabaseService.markMessageRead(newMsg.id, currentUser.id);
+          } catch (statusError) {
+            console.warn('Could not acknowledge incoming message:', statusError);
+          }
           soundEngine.playReceived();
           setIsRecipientTyping(false);
         }
