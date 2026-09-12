@@ -97,7 +97,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
               type="text"
               value={searchTerm}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Search by username, phone number, or bio..."
+              placeholder="Search by username, email, or bio..."
               className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
               autoFocus
             />

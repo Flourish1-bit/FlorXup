@@ -6,7 +6,6 @@ import {
   Mail,
   Lock,
   User,
-  Phone,
   Camera,
   Upload,
   Image as ImageIcon,
@@ -35,16 +34,12 @@ import confetti from 'canvas-confetti';
 
 interface AuthProps {
   onAuthenticated: (user: UserProfile) => void;
-  isSupabaseConfigured: boolean;
-  onOpenConfig: () => void;
   onBackToLanding?: () => void;
   initialMode?: 'signin' | 'signup';
 }
 
 export const Auth: React.FC<AuthProps> = ({
   onAuthenticated,
-  isSupabaseConfigured,
-  onOpenConfig,
   onBackToLanding,
   initialMode = 'signup',
 }) => {
@@ -53,7 +48,6 @@ export const Auth: React.FC<AuthProps> = ({
   // Sign Up State
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -91,9 +85,6 @@ export const Auth: React.FC<AuthProps> = ({
         if (clean.includes('@')) {
           if (!email) setEmail(clean);
           if (!username) setUsername(clean.split('@')[0]);
-        } else if (/^[\d+\s()-]{7,}$/.test(clean)) {
-          if (!phoneNumber) setPhoneNumber(clean);
-          if (!username) setUsername('user_' + clean.replace(/\D/g, '').slice(-4));
         } else {
           if (!username) setUsername(clean.replace(/^@+/, ''));
         }
@@ -104,7 +95,7 @@ export const Auth: React.FC<AuthProps> = ({
       }
     } else {
       if (!signInIdentifier) {
-        setSignInIdentifier(email || username || phoneNumber);
+        setSignInIdentifier(email || username);
       }
       if (password && !signInPassword) {
         setSignInPassword(password);
@@ -143,15 +134,10 @@ export const Auth: React.FC<AuthProps> = ({
 
     let cleanUsername = cleanId.replace(/^@+/, '');
     let cleanEmail = `${cleanUsername.toLowerCase().replace(/[^a-z0-9]/g, '')}@florxup.me`;
-    let cleanPhone = '';
 
     if (cleanId.includes('@')) {
       cleanEmail = cleanId.toLowerCase();
       cleanUsername = cleanId.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_');
-    } else if (/^[\d+\s()-]{6,}$/.test(cleanId)) {
-      cleanPhone = cleanId;
-      cleanUsername = 'user_' + cleanId.replace(/\D/g, '').slice(-4);
-      cleanEmail = `${cleanUsername}@florxup.me`;
     }
 
     if (!cleanUsername || cleanUsername.length < 2) {
@@ -168,7 +154,6 @@ export const Auth: React.FC<AuthProps> = ({
       const userProfile = await supabaseService.signUp({
         username: cleanUsername,
         email: cleanEmail,
-        phone_number: cleanPhone || undefined,
         avatarUrl: null,
         password: cleanPass,
         statusBio: 'Building for Humanity with Florxup 🚀',
@@ -201,7 +186,6 @@ export const Auth: React.FC<AuthProps> = ({
 
     const cleanUsername = username.trim().replace(/^@+/, '');
     const cleanEmail = email.trim().toLowerCase();
-    const cleanPhone = phoneNumber.trim();
 
     if (!cleanUsername || cleanUsername.length < 2) {
       setErrorMessage('Please provide a username with at least 2 characters.');
@@ -210,11 +194,6 @@ export const Auth: React.FC<AuthProps> = ({
 
     if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
       setErrorMessage('Please enter a valid email address.');
-      return;
-    }
-
-    if (!cleanPhone || cleanPhone.length < 6) {
-      setErrorMessage('Please enter a valid phone number.');
       return;
     }
 
@@ -240,7 +219,6 @@ export const Auth: React.FC<AuthProps> = ({
       const userProfile = await supabaseService.signUp({
         username: cleanUsername,
         email: cleanEmail,
-        phone_number: cleanPhone,
         avatarUrl: avatarUrl || null,
         password: password,
         statusBio: bio.trim() || 'Building for Humanity with Florxup 🚀',
@@ -274,7 +252,7 @@ export const Auth: React.FC<AuthProps> = ({
 
     const cleanIdentifier = signInIdentifier.trim();
     if (!cleanIdentifier) {
-      setErrorMessage('Please enter your username, email, or phone number.');
+      setErrorMessage('Please enter your username or email.');
       return;
     }
 
@@ -434,7 +412,7 @@ export const Auth: React.FC<AuthProps> = ({
           <form onSubmit={handleSignIn} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Username, Email, or Phone Number
+                Username or Email
               </label>
               <div className="relative">
                 <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -443,7 +421,7 @@ export const Auth: React.FC<AuthProps> = ({
                   required
                   value={signInIdentifier}
                   onChange={(e) => setSignInIdentifier(e.target.value)}
-                  placeholder="e.g. flourish, name@mail.com, or +1234567890"
+                  placeholder="e.g. flourish or name@mail.com"
                   className="w-full pl-10 pr-4 py-3 rounded-2xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-emerald-500 transition"
                 />
               </div>
@@ -599,20 +577,6 @@ export const Auth: React.FC<AuthProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Phone Number *
-                </label>
-                <div className="relative">
-                  <Phone className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <input
-                    type="tel"
-                    required
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder="+1 555 0199"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-2xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-emerald-500 transition"
-                  />
-                </div>
               </div>
             </div>
 
@@ -675,7 +639,7 @@ export const Auth: React.FC<AuthProps> = ({
 
             <button
               type="submit"
-              disabled={loading || !username.trim() || !email.trim() || !phoneNumber.trim() || !password}
+              disabled={loading || !username.trim() || !email.trim() || !password}
               className="w-full mt-2 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 disabled:opacity-40 text-slate-950 font-bold text-sm shadow-xl shadow-emerald-500/20 transition cursor-pointer flex items-center justify-center gap-2 disabled:cursor-not-allowed"
             >
               {loading ? (

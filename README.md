@@ -18,3 +18,21 @@ View your app in AI Studio: https://ai.studio/apps/dbb3449b-c9ad-45b6-b871-14872
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## Backend
+
+The first backend slice is a standalone Node.js API with email-based authentication, hashed passwords, JWT access tokens, user search, and an authenticated WebSocket endpoint.
+
+1. Copy `.env.example` to `.env` and set a long random `JWT_SECRET`.
+2. Start the API with `npm run server:dev`.
+3. The API runs at `http://localhost:4000`; check `GET /health` to verify it is running.
+
+Available routes:
+
+- `POST /auth/signup`
+- `POST /auth/login`
+- `GET /auth/me`
+- `GET /users/search?email=`
+- `WS /ws?token=<access-token>`
+
+Development data is stored in `data/backend.json`. It contains password hashes, never plaintext passwords. PostgreSQL, email delivery, media storage, Redis, and production WebSocket fan-out are intentionally deferred to the next backend slice.

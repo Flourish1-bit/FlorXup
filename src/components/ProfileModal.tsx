@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Check, User, ShieldCheck, Mail, Phone, Camera, Trash2, LogOut, FileText } from 'lucide-react';
+import { X, Check, User, ShieldCheck, Mail, Camera, Trash2, LogOut, FileText } from 'lucide-react';
 import { UserProfile } from '../types';
 import { UserAvatar } from './UserAvatar';
 import { supabaseService } from '../lib/supabase';
@@ -22,7 +22,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [username, setUsername] = useState(currentUser.username);
   const [statusBio, setStatusBio] = useState(currentUser.status_bio || '');
   const [email, setEmail] = useState(currentUser.email || '');
-  const [phoneNumber, setPhoneNumber] = useState(currentUser.phone_number || '');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(currentUser.avatar_url || null);
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -59,7 +58,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         username: username.trim().replace(/^@+/, ''),
         status_bio: statusBio.trim(),
         email: email.trim().toLowerCase(),
-        phone_number: phoneNumber.trim() || undefined,
         avatar_url: avatarUrl || null,
       };
 
@@ -181,25 +179,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
           </div>
 
-          {/* Phone & Email Inputs */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Phone Number
-              </label>
-              <div className="relative">
-                <Phone className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                <input
-                  type="tel"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  placeholder="+1 555 0199"
-                  className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-emerald-500 transition"
-                />
-              </div>
-            </div>
-
-            <div>
+          {/* Email Input */}
+          <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 Email Address
               </label>
@@ -213,7 +194,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-emerald-500 transition"
                 />
               </div>
-            </div>
           </div>
 
           {/* Bio Input */}

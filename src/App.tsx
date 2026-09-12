@@ -8,7 +8,6 @@ import { Sidebar } from './components/Sidebar';
 import { PrivateChat } from './components/PrivateChat';
 import { GlobalDevChat } from './components/GlobalDevChat';
 import { ProfileModal } from './components/ProfileModal';
-import { SupabaseConfigModal } from './components/SupabaseConfigModal';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
@@ -27,10 +26,6 @@ export default function App() {
   // Load profiles on mount & listen for real-time updates
   useEffect(() => {
     async function loadData() {
-      if (supabaseService.getIsConfigured()) {
-        await supabaseService.syncAllAuthProfiles();
-      }
-
       if (currentUser?.id) {
         const repaired = await supabaseService.ensureProfileKeyForUser(currentUser.id);
         if (repaired) {
@@ -122,8 +117,6 @@ export default function App() {
       <Auth
         initialMode={authInitialMode}
         onAuthenticated={handleAuthenticated}
-        isSupabaseConfigured={supabaseService.getIsConfigured()}
-        onOpenConfig={() => setIsConfigOpen(true)}
         onBackToLanding={() => setAuthView('landing')}
       />
     );
@@ -219,12 +212,6 @@ export default function App() {
         />
       )}
 
-      {/* 4. Global Cloud Config Modal */}
-      <SupabaseConfigModal
-        isOpen={isConfigOpen}
-        onClose={() => setIsConfigOpen(false)}
-        currentUser={currentUser}
-      />
     </div>
   );
 }

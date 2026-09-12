@@ -1,11 +1,11 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { UserProfile, PrivateMessage, GlobalDevMessage, Contact } from '../types';
+
+type SupabaseClient = any;
 
 export interface UserAccountCredentials {
   id: string;
   username: string;
   email: string;
-  phone_number?: string;
   passwordHash: string; // Stored client-side safe representation
   profile: UserProfile;
 }
@@ -17,7 +17,6 @@ const STORAGE_MESSAGES_KEY = 'florxup_private_messages_v1';
 const STORAGE_GLOBAL_KEY = 'florxup_global_messages_v1';
 const STORAGE_GROUP_STATES_KEY = 'florxup_group_states_v1';
 const STORAGE_REPORTS_KEY = 'florxup_reports_v1';
-const STORAGE_SUPABASE_CREDS_KEY = 'florxup_custom_supabase_creds_v1';
 
 // Initial verified system welcome announcement
 export const SYSTEM_WELCOME_MESSAGE: GlobalDevMessage = {
@@ -158,46 +157,12 @@ class SupabaseService {
   }
 
   public getCustomCredentials(): { url: string; key: string } | null {
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const stored = localStorage.getItem(STORAGE_SUPABASE_CREDS_KEY);
-        if (stored) return JSON.parse(stored);
-      }
-    } catch (e) {}
     return null;
   }
 
   public initClient(customUrl?: string, customKey?: string) {
-    const savedCreds = this.getCustomCredentials();
-    const url =
-      customUrl !== undefined
-        ? customUrl
-        : savedCreds?.url || (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_SUPABASE_URL : '') || '';
-    const anonKey =
-      customKey !== undefined
-        ? customKey
-        : savedCreds?.key || (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_SUPABASE_ANON_KEY : '') || '';
-
-    if (customUrl !== undefined || customKey !== undefined) {
-      try {
-        if (typeof window !== 'undefined' && window.localStorage) {
-          localStorage.setItem(STORAGE_SUPABASE_CREDS_KEY, JSON.stringify({ url, key: anonKey }));
-        }
-      } catch (e) {}
-    }
-
-    if (url && anonKey && !url.includes('your-project')) {
-      try {
-        this.client = createClient(url, anonKey);
-        this.isConfigured = true;
-        console.log('✅ Supabase initialized with live endpoints');
-      } catch (err) {
-        console.warn('Could not initialize live Supabase client, using local-first storage:', err);
-        this.isConfigured = false;
-      }
-    } else {
-      this.isConfigured = false;
-    }
+    this.client = null;
+    this.isConfigured = false;
   }
 
   public getIsConfigured(): boolean {
@@ -268,7 +233,6 @@ class SupabaseService {
   public async signUp(params: {
     username: string;
     email: string;
-    phone_number?: string;
     password: string;
     statusBio?: string;
     avatarUrl?: string | null;
@@ -276,14 +240,11 @@ class SupabaseService {
   }): Promise<UserProfile> {
     const cleanUsername = params.username.trim().replace(/^@+/, '');
     const cleanEmail = params.email.trim().toLowerCase();
-    const cleanPhone = params.phone_number?.trim() || '';
-    const normalizedPhone = cleanPhone.replace(/[^\d+]/g, '');
 
-    // Check if username, email, or phone number already exists
+    // Check if username or email already exists.
     const existing = this.localUsers.find((u) => {
       if (u.username.toLowerCase() === cleanUsername.toLowerCase()) return true;
       if (u.email.toLowerCase() === cleanEmail) return true;
-      if (normalizedPhone && u.phone_number && u.phone_number.replace(/[^\d+]/g, '') === normalizedPhone) return true;
       return false;
     });
 
@@ -294,148 +255,48 @@ class SupabaseService {
       if (existing.email.toLowerCase() === cleanEmail) {
         throw new Error(`Email ${cleanEmail} is already registered. Please sign in.`);
       }
-      if (normalizedPhone && existing.phone_number && existing.phone_number.replace(/[^\d+]/g, '') === normalizedPhone) {
-        throw new Error(`Phone number ${cleanPhone} is already registered. Please sign in.`);
-      }
     }
 
-    // REQUIRE Supabase live to sign up - no fallback custom IDs allowed
-    if (!this.isConfigured || !this.client) {
-      throw new Error('Supabase is not configured. Please configure your Supabase credentials first.');
-    }
+    const authUserId = crypto.randomUUID();
+    const newProfile: UserProfile = {
+      id: authUserId,
+      username: cleanUsername,
+      email: cleanEmail,
+      avatar_url: params.avatarUrl || null,
+      status_bio: params.statusBio?.trim() || 'Building for Humanity with Florxup 🚀',
+      public_key: params.publicKey,
+      is_online: true,
+      last_seen: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    };
 
-    let authUserId = '';
-    let newProfile: UserProfile | null = null;
-
-    try {
-      const { data, error } = await this.client.auth.signUp({
-        email: cleanEmail,
-        password: params.password,
-        options: {
-          data: { username: cleanUsername, phone_number: cleanPhone },
-        },
-      });
-
-      if (error) throw error;
-      if (!data.user?.id) {
-        throw new Error('Supabase Auth did not return a user ID. Signup failed.');
-      }
-
-      authUserId = data.user.id;
-
-      // Verify the ID is a real UUID
-      if (!this.isValidSupabaseUuid(authUserId)) {
-        throw new Error(`Invalid Supabase user ID: ${authUserId}. Expected a real UUID.`);
-      }
-
-      newProfile = {
-        id: authUserId,
-        username: cleanUsername,
-        email: cleanEmail,
-        phone_number: cleanPhone || undefined,
-        avatar_url: params.avatarUrl || null,
-        status_bio: params.statusBio?.trim() || 'Building for Humanity with Florxup 🚀',
-        public_key: params.publicKey,
-        is_online: true,
-        last_seen: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-      };
-
-      const { data: profileRow, error: profileError } = await this.client
-        .from('profiles')
-        .upsert(newProfile, { onConflict: 'id' })
-        .select()
-        .single();
-
-      if (profileError) {
-        throw new Error(`Profile creation failed: ${profileError.message}`);
-      }
-
-      if (profileRow) {
-        newProfile = profileRow;
-      }
-    } catch (err) {
-      console.error('Supabase cloud signup error:', err);
-      throw err;
-    }
-
-    // Save user credential (authUserId is guaranteed to be a real UUID at this point)
     this.localUsers.push({
       id: authUserId,
       username: cleanUsername,
       email: cleanEmail,
-      phone_number: cleanPhone || undefined,
       passwordHash: btoa(params.password),
-      profile: newProfile!,
+      profile: newProfile,
     });
 
     this.saveToStorage();
-    this.setStoredSession(newProfile!);
-    this.emit('profile_updated', newProfile!);
+    this.setStoredSession(newProfile);
+    this.emit('profile_updated', newProfile);
 
-    return newProfile!;
+    return newProfile;
   }
 
   public async signIn(identifier: string, password: string): Promise<UserProfile> {
     const cleanIdentifier = identifier.trim().replace(/^@+/, '').toLowerCase();
-    const identifierDigits = identifier.replace(/[^\d+]/g, '');
 
-    // If Supabase live client is enabled and identifier is email
-    if (this.isConfigured && this.client && cleanIdentifier.includes('@')) {
-      try {
-        const { data, error } = await this.client.auth.signInWithPassword({
-          email: cleanIdentifier,
-          password,
-        });
-
-        if (!error && data.user) {
-          let profile = await this.getProfile(data.user.id);
-          if (!profile) {
-            const fallbackProfile: UserProfile = {
-              id: data.user.id,
-              username: data.user.user_metadata?.username || cleanIdentifier.split('@')[0],
-              email: data.user.email || cleanIdentifier,
-              phone_number: data.user.phone || undefined,
-              avatar_url: data.user.user_metadata?.avatar_url || null,
-              status_bio: data.user.user_metadata?.status_bio || 'Building for Humanity with Florxup 🚀',
-              public_key: data.user.user_metadata?.public_key || '',
-              is_online: true,
-              last_seen: new Date().toISOString(),
-              created_at: new Date().toISOString(),
-            };
-            profile = await this.upsertProfile(fallbackProfile);
-          }
-
-          if (!profile.public_key || profile.public_key.trim().length === 0) {
-            profile = (await this.ensureProfileKeyForUser(data.user.id)) || profile;
-          }
-
-          this.setStoredSession(profile);
-          return profile;
-        }
-      } catch (e) {
-        console.warn('Cloud sign-in attempt error:', e);
-      }
-    }
-
-    // Local / offline credential check (matches username, email, or phone number)
+    // Local credential check by username or email.
     const userAccount = this.localUsers.find((u) => {
       if (u.username.toLowerCase() === cleanIdentifier) return true;
       if (u.email.toLowerCase() === cleanIdentifier) return true;
-      if (u.phone_number) {
-        const userPhoneDigits = u.phone_number.replace(/[^\d+]/g, '');
-        if (
-          (identifierDigits.length >= 7 && userPhoneDigits === identifierDigits) ||
-          u.phone_number.toLowerCase() === cleanIdentifier
-        ) {
-          return true;
-        }
-      }
       return false;
     });
 
     if (!userAccount) {
-      throw new Error(`Account not found for "${identifier}". Please check your handle/email/phone or sign up.`);
+      throw new Error(`Account not found for "${identifier}". Please check your handle/email or sign up.`);
     }
 
     if (userAccount.passwordHash !== btoa(password)) {
@@ -546,7 +407,6 @@ class SupabaseService {
               id: profile.id,
               username: profile.username,
               email: profile.email || `${profile.username.toLowerCase()}@florxup.local`,
-              phone_number: profile.phone_number,
               passwordHash: '',
               profile,
             });
@@ -642,13 +502,11 @@ class SupabaseService {
     if (idx >= 0) {
       this.localUsers[idx].profile = { ...this.localUsers[idx].profile, ...profile };
       if (profile.email) this.localUsers[idx].email = profile.email;
-      if (profile.phone_number) this.localUsers[idx].phone_number = profile.phone_number;
     } else {
       this.localUsers.push({
         id: profile.id,
         username: profile.username,
         email: profile.email || `${profile.username.toLowerCase()}@florxup.local`,
-        phone_number: profile.phone_number,
         passwordHash: '',
         profile,
       });
@@ -735,7 +593,6 @@ class SupabaseService {
 
   async searchUsers(query: string, currentUserId: string): Promise<UserProfile[]> {
     const clean = query.trim().toLowerCase();
-    const digits = query.replace(/[^\d+]/g, '');
     if (!clean) return [];
 
     const all = await this.getProfiles();
@@ -744,11 +601,7 @@ class SupabaseService {
         p.id !== currentUserId &&
         (p.username.toLowerCase().includes(clean) ||
           (p.status_bio && p.status_bio.toLowerCase().includes(clean)) ||
-          (p.email && p.email.toLowerCase().includes(clean)) ||
-          (p.phone_number && (
-            p.phone_number.toLowerCase().includes(clean) ||
-            (digits.length >= 3 && p.phone_number.replace(/[^\d+]/g, '').includes(digits))
-          )))
+          (p.email && p.email.toLowerCase().includes(clean)))
     );
   }
 
