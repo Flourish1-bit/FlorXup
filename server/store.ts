@@ -7,6 +7,7 @@ export interface StoredUser {
   id: string;
   username: string;
   email: string;
+  role: 'ADMIN' | 'USER';
   passwordHash: string;
   statusBio: string;
   avatarUrl: string | null;
@@ -28,6 +29,10 @@ export class Store {
   async load(): Promise<void> {
     try {
       this.data = JSON.parse(await readFile(this.filePath, 'utf8')) as BackendData;
+      this.data.users = (this.data.users || []).map((user) => ({
+        ...user,
+        role: user.role === 'ADMIN' ? 'ADMIN' : 'USER',
+      }));
     } catch (error: any) {
       if (error?.code !== 'ENOENT') throw error;
       await this.save();
@@ -60,6 +65,22 @@ export class Store {
     this.data.users.push(user);
     await this.save();
     return user;
+  }
+
+  async updateUser(id: string, updates: Partial<Pick<StoredUser, 'username' | 'email' | 'statusBio' | 'avatarUrl' | 'emailVerified' | 'role'>>): Promise<StoredUser | undefined> {
+    const user = this.findUserById(id);
+    if (!user) return undefined;
+    Object.assign(user, updates);
+    await this.save();
+    return user;
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    const originalLength = this.data.users.length;
+    this.data.users = this.data.users.filter((user) => user.id !== id);
+    if (this.data.users.length === originalLength) return false;
+    await this.save();
+    return true;
   }
 }
 

@@ -17,6 +17,8 @@ const STORAGE_MESSAGES_KEY = 'florxup_private_messages_v1';
 const STORAGE_GLOBAL_KEY = 'florxup_global_messages_v1';
 const STORAGE_GROUP_STATES_KEY = 'florxup_group_states_v1';
 const STORAGE_REPORTS_KEY = 'florxup_reports_v1';
+const ADMIN_EMAIL = 'flourishokafor13@gmail.com';
+const ADMIN_USERNAME = 'Admin_Flourish_Okafor';
 
 // Initial verified system welcome announcement
 export const SYSTEM_WELCOME_MESSAGE: GlobalDevMessage = {
@@ -207,7 +209,11 @@ class SupabaseService {
       if (typeof window !== 'undefined' && window.localStorage) {
         const stored = localStorage.getItem(STORAGE_SESSION_KEY);
         if (stored) {
-          return JSON.parse(stored);
+          const session = JSON.parse(stored) as UserProfile;
+          return {
+            ...session,
+            role: session.email?.toLowerCase() === ADMIN_EMAIL && session.username === ADMIN_USERNAME ? 'ADMIN' : 'USER',
+          };
         }
       }
     } catch (e) {
@@ -262,6 +268,7 @@ class SupabaseService {
       id: authUserId,
       username: cleanUsername,
       email: cleanEmail,
+      role: cleanEmail === ADMIN_EMAIL && cleanUsername === ADMIN_USERNAME ? 'ADMIN' : 'USER',
       avatar_url: params.avatarUrl || null,
       status_bio: params.statusBio?.trim() || 'Building for Humanity with Florxup 🚀',
       public_key: params.publicKey,
@@ -305,6 +312,7 @@ class SupabaseService {
 
     const updatedProfile: UserProfile = {
       ...userAccount.profile,
+      role: userAccount.email.toLowerCase() === ADMIN_EMAIL && userAccount.username === ADMIN_USERNAME ? 'ADMIN' : 'USER',
       is_online: true,
       last_seen: new Date().toISOString(),
     };
@@ -444,7 +452,7 @@ class SupabaseService {
         const { data, error } = await this.client.from('profiles').select('*').order('username');
         if (!error && data && data.length > 0) {
           const repaired = await Promise.all(
-            data.map(async (profile) => {
+            (data as UserProfile[]).map(async (profile: UserProfile) => {
               if (!profile.public_key || profile.public_key.trim().length === 0) {
                 const fixed = await this.ensureProfileKeyForUser(profile.id);
                 return fixed || profile;
@@ -954,6 +962,40 @@ class SupabaseService {
     return this.localReports;
   }
 
+  async adminUpdateUser(userId: string, updates: Partial<UserProfile>): Promise<UserProfile | null> {
+    const account = this.localUsers.find((user) => user.id === userId);
+    if (!account) return null;
+    const nextEmail = updates.email || account.email;
+    const nextUsername = updates.username || account.username;
+    account.profile = {
+      ...account.profile,
+      ...updates,
+      role: nextEmail.toLowerCase() === ADMIN_EMAIL && nextUsername === ADMIN_USERNAME ? 'ADMIN' : 'USER',
+    };
+    if (updates.username) account.username = updates.username;
+    if (updates.email) account.email = updates.email;
+    this.saveToStorage();
+    this.emit('profile_updated', account.profile);
+    return account.profile;
+  }
+
+  async adminDeleteUser(userId: string): Promise<boolean> {
+    const originalLength = this.localUsers.length;
+    this.localUsers = this.localUsers.filter((user) => user.id !== userId);
+    if (this.localUsers.length === originalLength) return false;
+    this.localContacts = this.localContacts.filter((contact) => contact.user_id !== userId && contact.contact_id !== userId);
+    this.saveToStorage();
+    return true;
+  }
+
+  async adminUpdateReport(reportId: string, status: import('../types').GroupReport['status']): Promise<boolean> {
+    const report = this.localReports.find((candidate) => candidate.id === reportId);
+    if (!report) return false;
+    report.status = status;
+    this.saveToStorage();
+    return true;
+  }
+
   // --------------------------------------------------------------------------
   // Realtime & Event Emitters (Messages, Typing Indicators, Presence)
   // --------------------------------------------------------------------------
@@ -1016,7 +1058,7 @@ class SupabaseService {
     if (this.isConfigured && this.client) {
       supabaseChannel = this.client
         .channel(`room_presence_${channelId}`)
-        .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        .on('broadcast', { event: 'typing' }, ({ payload }: { payload: { senderId: string; isTyping: boolean; timestamp: number } }) => {
           if (payload && payload.senderId === otherUserId) {
             callback(payload);
           }
@@ -1046,7 +1088,7 @@ class SupabaseService {
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'private_messages' },
-            (payload) => {
+            (payload: { new: PrivateMessage }) => {
               callback(payload.new);
             }
           )
@@ -1057,7 +1099,7 @@ class SupabaseService {
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'global_dev_messages' },
-            (payload) => {
+            (payload: { new: GlobalDevMessage }) => {
               callback(payload.new);
             }
           )

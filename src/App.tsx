@@ -8,6 +8,7 @@ import { Sidebar } from './components/Sidebar';
 import { PrivateChat } from './components/PrivateChat';
 import { GlobalDevChat } from './components/GlobalDevChat';
 import { ProfileModal } from './components/ProfileModal';
+import { AdminDashboard } from './components/AdminDashboard';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
@@ -22,6 +23,7 @@ export default function App() {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [mobileView, setMobileView] = useState<'sidebar' | 'chat'>('sidebar');
+  const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
 
   // Load profiles on mount & listen for real-time updates
   useEffect(() => {
@@ -123,6 +125,10 @@ export default function App() {
   }
 
   // 2. Main Authenticated Chat App
+  if (isAdminDashboardOpen && currentUser.role === 'ADMIN') {
+    return <AdminDashboard currentUser={currentUser} profiles={profiles} onBack={() => setIsAdminDashboardOpen(false)} />;
+  }
+
   return (
     <div
       className={`h-screen w-screen flex overflow-hidden font-sans ${
@@ -147,6 +153,7 @@ export default function App() {
           onSignOut={handleSignOut}
           isDarkMode={isDarkMode}
           onToggleTheme={() => setIsDarkMode(!isDarkMode)}
+          onOpenAdminDashboard={currentUser.role === 'ADMIN' ? () => setIsAdminDashboardOpen(true) : undefined}
         />
       </div>
 

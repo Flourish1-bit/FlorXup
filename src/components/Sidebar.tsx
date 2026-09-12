@@ -38,6 +38,7 @@ interface SidebarProps {
   onSignOut?: () => void;
   isDarkMode: boolean;
   onToggleTheme: () => void;
+  onOpenAdminDashboard?: () => void;
   lastMessages?: Record<string, { text: string; time: string; isSent: boolean }>;
 }
 
@@ -53,6 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSignOut,
   isDarkMode,
   onToggleTheme,
+  onOpenAdminDashboard,
   lastMessages = {},
 }) => {
   const [activeTab, setActiveTab] = useState<'chats' | 'contacts' | 'global'>('chats');
@@ -171,6 +173,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <User className="w-4 h-4 text-emerald-400" />
           </button>
+
+          {onOpenAdminDashboard && (
+            <button
+              onClick={onOpenAdminDashboard}
+              title="Open admin dashboard"
+              className={`p-2 rounded-xl transition cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center ${
+                isDarkMode ? 'hover:bg-slate-800 text-amber-300' : 'hover:bg-slate-100 text-amber-600'
+              }`}
+            >
+              <Shield className="w-4 h-4" />
+            </button>
+          )}
 
           <button
             onClick={toggleSound}

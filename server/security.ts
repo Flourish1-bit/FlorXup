@@ -20,8 +20,8 @@ export async function verifyPassword(password: string, storedHash: string): Prom
   return storedKey.length === derivedKey.length && timingSafeEqual(storedKey, derivedKey);
 }
 
-export function createAccessToken(userId: string): string {
-  return jwt.sign({ sub: userId }, config.jwtSecret, { expiresIn: config.jwtExpiresIn } as jwt.SignOptions);
+export function createAccessToken(userId: string, role: 'ADMIN' | 'USER' = 'USER'): string {
+  return jwt.sign({ sub: userId, role }, config.jwtSecret, { expiresIn: config.jwtExpiresIn } as jwt.SignOptions);
 }
 
 export function getUserIdFromToken(token: string): string | null {

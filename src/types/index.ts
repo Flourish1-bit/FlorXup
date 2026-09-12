@@ -2,6 +2,7 @@ export interface UserProfile {
   id: string;
   username: string;
   email?: string;
+  role?: 'ADMIN' | 'USER';
   avatar_url?: string | null;
   status_bio?: string;
   public_key: string; // JWK JSON string

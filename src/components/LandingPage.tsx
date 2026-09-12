@@ -45,9 +45,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         'Florxup uses modern client-side Elliptic Curve Diffie-Hellman (ECDH P-256) combined with AES-GCM 256-bit encryption. Your private keys never leave your browser or device storage (IndexedDB). Messages are encrypted before hitting any server, so only the designated recipient can decrypt and view the plaintext.',
     },
     {
-      question: 'Do I need a phone number or SIM card to sign up?',
+      question: 'What do I need to create an account?',
       answer:
-        'No. Unlike traditional messaging platforms, Florxup gives you total freedom: you can choose any unique username or handle without being forced to attach a phone number or real identity.',
+        'Create an account with a unique username, email address, and password. No phone number or SIM card is required.',
     },
     {
       question: 'Can Florxup or third parties read my encrypted messages?',
@@ -62,7 +62,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     {
       question: 'What happens if I lose my device or switch browsers?',
       answer:
-        'Because private keys are bound to your local device vault for ultimate zero-knowledge security, you can export and backup your public/private credentials or connect to your own Supabase project for synchronized multi-device cloud relays.',
+        'Because private keys are bound to your local device vault for zero-knowledge security, you can export and back up your public/private credentials for use across trusted devices.',
     },
   ];
 
@@ -162,7 +162,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </h1>
 
         <p className="text-sm sm:text-base md:text-lg text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
-          A lightning-fast WhatsApp-style messaging suite built for humanitarian responders, private conversations, and real-time global collaboration. No phone numbers required.
+          A lightning-fast WhatsApp-style messaging suite built for humanitarian responders, private conversations, and real-time global collaboration.
         </p>
 
         {/* Primary Call to Actions */}
@@ -201,7 +201,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
           <div className="p-3 text-center">
             <p className="text-xl sm:text-2xl font-extrabold text-emerald-400">0</p>
-            <p className="text-xs text-slate-400 font-medium">Phone Numbers Required</p>
+            <p className="text-xs text-slate-400 font-medium">No Phone Number Required</p>
           </div>
         </div>
 
@@ -372,7 +372,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 Real-Time Presence & Typing
               </h3>
               <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
-                Supabase Realtime broadcast channels stream live typing indicators and presence updates with zero server persistence.
+                Real-time channels stream live typing indicators and presence updates without storing private message content.
               </p>
             </div>
           </div>
@@ -563,7 +563,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 Start Chatting Privately Today
               </h2>
               <p className="text-sm sm:text-base font-medium text-slate-900/90 mb-8 max-w-lg mx-auto">
-                No setup delays, no phone numbers, no tracking. Create your account in under 5 seconds with end-to-end encryption.
+                No setup delays and no tracking. Create your account in under 5 seconds with end-to-end encryption.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <button
