@@ -134,7 +134,8 @@ security definer
 set search_path = public
 as $$
   select * from public.profiles
-  where id <> current_user_id
+  where auth.uid() = current_user_id
+    and id <> current_user_id
     and (lower(username) = lower(search_term) or lower(email) = lower(search_term))
   limit 1;
 $$;
