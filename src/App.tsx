@@ -28,20 +28,28 @@ export default function App() {
   // Load profiles on mount & listen for real-time updates
   useEffect(() => {
     async function loadData() {
+      let repaired: UserProfile | null = null;
       if (currentUser?.id) {
-        const repaired = await supabaseService.ensureProfileKeyForUser(currentUser.id);
+        repaired = await supabaseService.ensureProfileKeyForUser(currentUser.id);
         if (repaired) {
           setCurrentUser(repaired);
           supabaseService.setStoredSession(repaired);
         }
       }
 
-      const allProfiles = await supabaseService.getProfiles();
-      setProfiles(allProfiles);
+      const visibleProfiles = currentUser?.role === 'ADMIN'
+        ? await supabaseService.getProfiles()
+        : repaired
+          ? [repaired]
+          : currentUser
+            ? [currentUser]
+            : [];
+      setProfiles(visibleProfiles);
     }
     loadData();
 
     const unsubscribe = supabaseService.subscribe('profile_updated', (updated: UserProfile) => {
+      if (currentUser?.role !== 'ADMIN' && updated.id !== currentUser?.id) return;
       setProfiles((prev) => {
         const idx = prev.findIndex((p) => p.id === updated.id);
         if (idx >= 0) {
@@ -61,12 +69,9 @@ export default function App() {
 
   const handleAuthenticated = (user: UserProfile) => {
     setCurrentUser(user);
-    setProfiles((prev) => {
-      if (prev.some((p) => p.id === user.id)) {
-        return prev.map((p) => (p.id === user.id ? user : p));
-      }
-      return [...prev, user];
-    });
+    setProfiles((prev) => prev.some((p) => p.id === user.id)
+      ? prev.map((p) => (p.id === user.id ? user : p))
+      : [...prev, user]);
   };
 
   const handleSignOut = async () => {
@@ -167,9 +172,6 @@ export default function App() {
           <GlobalDevChat
             currentUser={currentUser}
             isDarkMode={isDarkMode}
-            onOpenPrivateChatWith={(user) => {
-              handleSelectRecipient(user);
-            }}
             onBack={() => {
               setMobileView('sidebar');
               setActiveChatType('private');

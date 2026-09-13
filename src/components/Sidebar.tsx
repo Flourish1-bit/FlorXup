@@ -101,9 +101,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setContacts((prev) => prev.filter((c) => c.id !== contactId));
   };
 
-  // Filter out current user from all profiles
-  const availableProfiles = profiles.filter((p) => p.id !== currentUser.id);
-
   // Filtered contacts
   const filteredContacts = contacts.filter(
     (p) =>
@@ -111,8 +108,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       (p.status_bio && p.status_bio.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // Filtered private chat targets
-  const filteredChatTargets = availableProfiles.filter(
+  // Private chats are limited to contacts the user explicitly saved.
+  const filteredChatTargets = contacts.filter(
     (p) =>
       p.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.status_bio && p.status_bio.toLowerCase().includes(searchTerm.toLowerCase()))

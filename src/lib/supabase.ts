@@ -1,4 +1,5 @@
 import { UserProfile, PrivateMessage, GlobalDevMessage, Contact } from '../types';
+import { createClient } from '@supabase/supabase-js';
 
 type SupabaseClient = any;
 
@@ -163,8 +164,15 @@ class SupabaseService {
   }
 
   public initClient(customUrl?: string, customKey?: string) {
-    this.client = null;
-    this.isConfigured = false;
+    const url = customUrl || import.meta.env.VITE_SUPABASE_URL;
+    const key = customKey || import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if (!url || !key) {
+      this.client = null;
+      this.isConfigured = false;
+      return;
+    }
+    this.client = createClient(url, key);
+    this.isConfigured = true;
   }
 
   public getIsConfigured(): boolean {
@@ -247,6 +255,37 @@ class SupabaseService {
     const cleanUsername = params.username.trim().replace(/^@+/, '');
     const cleanEmail = params.email.trim().toLowerCase();
 
+    if (this.isConfigured && this.client) {
+      const { data, error } = await this.client.auth.signUp({ email: cleanEmail, password: params.password });
+      if (error || !data.user) throw new Error(error?.message || 'Could not create your account.');
+      const profile: UserProfile = {
+        id: data.user.id,
+        username: cleanUsername,
+        email: cleanEmail,
+        role: cleanEmail === ADMIN_EMAIL && cleanUsername === ADMIN_USERNAME ? 'ADMIN' : 'USER',
+        avatar_url: params.avatarUrl || null,
+        status_bio: params.statusBio?.trim() || 'Building for Humanity with Florxup 🚀',
+        public_key: params.publicKey,
+        is_online: true,
+        last_seen: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      };
+      const { data: savedProfile, error: profileError } = await this.client.from('profiles').insert({
+        id: profile.id,
+        username: profile.username,
+        email: profile.email,
+        role: profile.role,
+        avatar_url: profile.avatar_url,
+        status_bio: profile.status_bio,
+        public_key: profile.public_key,
+        is_online: true,
+        last_seen: profile.last_seen,
+      }).select().single();
+      if (profileError) throw new Error(profileError.message);
+      this.setStoredSession(savedProfile || profile);
+      return savedProfile || profile;
+    }
+
     // Check if username or email already exists.
     const existing = this.localUsers.find((u) => {
       if (u.username.toLowerCase() === cleanUsername.toLowerCase()) return true;
@@ -294,6 +333,19 @@ class SupabaseService {
 
   public async signIn(identifier: string, password: string): Promise<UserProfile> {
     const cleanIdentifier = identifier.trim().replace(/^@+/, '').toLowerCase();
+
+    if (this.isConfigured && this.client) {
+      const email = cleanIdentifier.includes('@') ? cleanIdentifier : undefined;
+      if (!email) throw new Error('Supabase sign-in requires an email address.');
+      const { data, error } = await this.client.auth.signInWithPassword({ email, password });
+      if (error || !data.user) throw new Error(error?.message || 'Invalid email or password.');
+      const { data: profile, error: profileError } = await this.client.from('profiles').select('*').eq('id', data.user.id).single();
+      if (profileError || !profile) throw new Error(profileError?.message || 'Your profile could not be loaded.');
+      const updatedProfile = { ...profile, is_online: true, last_seen: new Date().toISOString() } as UserProfile;
+      await this.client.from('profiles').update({ is_online: true, last_seen: updatedProfile.last_seen }).eq('id', updatedProfile.id);
+      this.setStoredSession(updatedProfile);
+      return updatedProfile;
+    }
 
     // Local credential check by username or email.
     const userAccount = this.localUsers.find((u) => {
@@ -603,14 +655,19 @@ class SupabaseService {
     const clean = query.trim().toLowerCase();
     if (!clean) return [];
 
-    const all = await this.getProfiles();
-    return all.filter(
-      (p) =>
-        p.id !== currentUserId &&
-        (p.username.toLowerCase().includes(clean) ||
-          (p.status_bio && p.status_bio.toLowerCase().includes(clean)) ||
-          (p.email && p.email.toLowerCase().includes(clean)))
-    );
+    if (this.isConfigured && this.client) {
+      const { data, error } = await this.client
+        .rpc('find_profile_by_identity', { search_term: clean, current_user_id: currentUserId });
+
+      if (!error && data) return data as UserProfile[];
+    }
+
+    return this.localUsers
+      .map((user) => user.profile)
+      .filter((profile) =>
+        profile.id !== currentUserId &&
+        (profile.username.toLowerCase() === clean || profile.email?.toLowerCase() === clean)
+      );
   }
 
   // --------------------------------------------------------------------------
@@ -955,14 +1012,37 @@ class SupabaseService {
     return newReport;
   }
 
-  getReports(userId?: string): import('../types').GroupReport[] {
-    if (userId) {
-      return this.localReports.filter((r) => r.reporter_id === userId);
+  async getReports(userId?: string): Promise<import('../types').GroupReport[]> {
+    if (this.isConfigured && this.client) {
+      let query = this.client.from('reports').select('*').order('created_at', { ascending: false });
+      if (userId) query = query.eq('reporter_id', userId);
+      const { data, error } = await query;
+      if (!error && data) {
+        this.localReports = data;
+        this.saveToStorage();
+        return data;
+      }
     }
-    return this.localReports;
+
+    return userId ? this.localReports.filter((r) => r.reporter_id === userId) : this.localReports;
   }
 
   async adminUpdateUser(userId: string, updates: Partial<UserProfile>): Promise<UserProfile | null> {
+    if (this.isConfigured && this.client) {
+      const { data: existing, error: existingError } = await this.client.from('profiles').select('*').eq('id', userId).single();
+      if (existingError || !existing) return null;
+      const nextEmail = updates.email || existing.email;
+      const nextUsername = updates.username || existing.username;
+      const role = nextEmail.toLowerCase() === ADMIN_EMAIL && nextUsername === ADMIN_USERNAME ? 'ADMIN' : 'USER';
+      const { data, error } = await this.client.from('profiles').update({
+        username: updates.username,
+        email: updates.email,
+        status_bio: updates.status_bio,
+        avatar_url: updates.avatar_url,
+        role,
+      }).eq('id', userId).select().single();
+      return !error && data ? data as UserProfile : null;
+    }
     const account = this.localUsers.find((user) => user.id === userId);
     if (!account) return null;
     const nextEmail = updates.email || account.email;
@@ -980,6 +1060,10 @@ class SupabaseService {
   }
 
   async adminDeleteUser(userId: string): Promise<boolean> {
+    if (this.isConfigured && this.client) {
+      const { error } = await this.client.from('profiles').delete().eq('id', userId);
+      return !error;
+    }
     const originalLength = this.localUsers.length;
     this.localUsers = this.localUsers.filter((user) => user.id !== userId);
     if (this.localUsers.length === originalLength) return false;
@@ -990,10 +1074,13 @@ class SupabaseService {
 
   async adminUpdateReport(reportId: string, status: import('../types').GroupReport['status']): Promise<boolean> {
     const report = this.localReports.find((candidate) => candidate.id === reportId);
-    if (!report) return false;
-    report.status = status;
+    if (report) report.status = status;
     this.saveToStorage();
-    return true;
+    if (this.isConfigured && this.client) {
+      const { error } = await this.client.from('reports').update({ status }).eq('id', reportId);
+      if (error) return false;
+    }
+    return Boolean(report) || this.isConfigured;
   }
 
   // --------------------------------------------------------------------------

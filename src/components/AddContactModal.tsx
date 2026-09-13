@@ -36,17 +36,12 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
       return;
     }
 
-    // Pre-load all available users if search is empty
-    supabaseService.getProfiles().then((all) => {
-      setSearchResults(all.filter((p) => p.id !== currentUser.id));
-    });
   }, [isOpen, currentUser.id]);
 
   const handleSearch = async (term: string) => {
     setSearchTerm(term);
     if (!term.trim()) {
-      const all = await supabaseService.getProfiles();
-      setSearchResults(all.filter((p) => p.id !== currentUser.id));
+      setSearchResults([]);
       return;
     }
 
@@ -97,7 +92,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
               type="text"
               value={searchTerm}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Search by username, email, or bio..."
+              placeholder="Enter an exact username or email..."
               className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
               autoFocus
             />
@@ -111,7 +106,7 @@ export const AddContactModal: React.FC<AddContactModalProps> = ({
           ) : searchResults.length === 0 ? (
             <div className="py-8 text-center text-xs text-slate-500 flex flex-col items-center gap-2">
               <User className="w-6 h-6 text-slate-600" />
-              <span>No users found matching "{searchTerm}"</span>
+              <span>{searchTerm.trim() ? `No exact username or email match for "${searchTerm}"` : 'Enter an exact username or email to find someone'}</span>
             </div>
           ) : (
             searchResults.map((user) => {

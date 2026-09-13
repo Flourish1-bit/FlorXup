@@ -85,8 +85,8 @@ app.get('/users/search', (request, response) => {
     if (!query)
         return response.json({ users: [] });
     const users = store.listUsers()
-        .filter((candidate) => candidate.id !== user.id && (candidate.email.includes(query) || candidate.username.toLowerCase().includes(query)))
-        .slice(0, 20)
+        .filter((candidate) => candidate.id !== user.id && (candidate.email === query || candidate.username.toLowerCase() === query))
+        .slice(0, 1)
         .map(toPublicUser);
     return response.json({ users });
 });
