@@ -19,6 +19,12 @@ View your app in AI Studio: https://ai.studio/apps/dbb3449b-c9ad-45b6-b871-14872
 3. Run the app:
    `npm run dev`
 
+## Deploy to Cloudflare Pages
+
+This project is configured as a Cloudflare Pages site. Build it with `npm run build`, then deploy the generated `dist` directory with `npm run deploy`.
+
+If using a Cloudflare dashboard deploy command, set it to `npm run deploy` (or `npx wrangler pages deploy dist --project-name florxup`). Do not use `npx wrangler deploy`, which is the Worker deployment command and does not use the Pages output configuration.
+
 ## Backend
 
 The first backend slice is a standalone Node.js API with email-based authentication, hashed passwords, JWT access tokens, user search, and an authenticated WebSocket endpoint.
