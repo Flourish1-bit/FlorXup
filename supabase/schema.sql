@@ -64,6 +64,23 @@ create table if not exists public.contacts (
 
 alter table public.contacts enable row level security;
 
+drop policy if exists "users read their own contacts" on public.contacts;
+drop policy if exists "users manage their own contacts" on public.contacts;
+drop policy if exists "users remove their own contacts" on public.contacts;
+drop policy if exists "users see themselves and saved contacts" on public.profiles;
+
+drop policy if exists "users update their own profile" on public.profiles;
+drop policy if exists "users create their profile" on public.profiles;
+drop policy if exists "admins manage profiles" on public.profiles;
+drop policy if exists "participants read private messages" on public.private_messages;
+drop policy if exists "users send private messages" on public.private_messages;
+drop policy if exists "recipients update delivery state" on public.private_messages;
+drop policy if exists "signed-in users read global messages" on public.global_dev_messages;
+drop policy if exists "signed-in users post global messages" on public.global_dev_messages;
+drop policy if exists "users read own reports" on public.reports;
+drop policy if exists "users submit reports" on public.reports;
+drop policy if exists "admins manage reports" on public.reports;
+
 create policy "users read their own contacts" on public.contacts for select to authenticated using (auth.uid() = user_id);
 create policy "users manage their own contacts" on public.contacts for insert to authenticated with check (auth.uid() = user_id);
 create policy "users remove their own contacts" on public.contacts for delete to authenticated using (auth.uid() = user_id);
@@ -134,8 +151,7 @@ security definer
 set search_path = public
 as $$
   select * from public.profiles
-  where auth.uid() = current_user_id
-    and id <> current_user_id
+  where id <> current_user_id
     and (lower(username) = lower(search_term) or lower(email) = lower(search_term))
   limit 1;
 $$;
