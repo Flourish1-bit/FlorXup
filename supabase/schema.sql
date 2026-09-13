@@ -76,6 +76,57 @@ using (
   )
 );
 
+create or replace function public.sync_all_auth_users_to_profiles()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (
+    id,
+    username,
+    email,
+    role,
+    avatar_url,
+    status_bio,
+    public_key,
+    is_online,
+    last_seen,
+    created_at
+  )
+  select
+    au.id,
+    coalesce(p.username, split_part(au.email, '@', 1)),
+    au.email,
+    case
+      when lower(au.email) = 'flourishokafor13@gmail.com'
+        and coalesce(p.username, split_part(au.email, '@', 1)) = 'Admin_Flourish_Okafor' then 'ADMIN'
+      else 'USER'
+    end,
+    null,
+    '',
+    '',
+    false,
+    null,
+    coalesce(au.created_at, now())
+  from auth.users as au
+  left join public.profiles as p on p.id = au.id
+  where p.id is null
+  on conflict (id) do update
+    set username = excluded.username,
+        email = excluded.email,
+        role = case
+          when lower(excluded.email) = 'flourishokafor13@gmail.com'
+            and excluded.username = 'Admin_Flourish_Okafor' then 'ADMIN'
+          else 'USER'
+        end;
+end;
+$$;
+
+revoke all on function public.sync_all_auth_users_to_profiles() from public;
+grant execute on function public.sync_all_auth_users_to_profiles() to authenticated;
+
 create or replace function public.find_profile_by_identity(search_term text, current_user_id uuid)
 returns setof public.profiles
 language sql
