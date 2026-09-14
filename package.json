@@ -10,7 +10,7 @@
     "server:start": "node server/dist-server/index.js",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "npm run deploy:pages",
+    "deploy": "node -e \"console.log('Cloudflare Pages deploys the dist directory automatically after the build.')\"",
     "deploy:pages": "wrangler pages deploy dist --project-name florxup",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"

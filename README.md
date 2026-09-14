@@ -21,9 +21,9 @@ View your app in AI Studio: https://ai.studio/apps/dbb3449b-c9ad-45b6-b871-14872
 
 ## Deploy to Cloudflare Pages
 
-This project is configured as a Cloudflare Pages site. For a Pages Git integration, set the build command to `npm run build` and the output directory to `dist`. Pages deploys the build output automatically, so leave the deploy command empty.
+This project is configured as a Cloudflare Pages site. Set the build command to `npm run build` and the output directory to `dist`. Pages deploys the build output automatically. If the provider requires a deploy command, use `npm run deploy`; it is intentionally a no-op because Pages performs the upload itself.
 
-For a separate CI job or a direct-upload workflow, build first and then run `npm run deploy`. The `CLOUDFLARE_API_TOKEN` used by that job must belong to the account that owns the `florxup` Pages project and include the `Account > Cloudflare Pages > Edit` permission. It must also be configured in the deployment environment, not only in a local `.env` file. A token with only read access, user access, or Worker permissions will fail with API error `10000` when Wrangler checks the Pages project.
+For a separate CI job or a direct-upload workflow, build first and then run `npm run deploy:pages`. The `CLOUDFLARE_API_TOKEN` used by that job must belong to the account that owns the `florxup` Pages project and include the `Account > Cloudflare Pages > Edit` permission. It must also be configured in the deployment environment, not only in a local `.env` file. A token with only read access, user access, or Worker permissions will fail with API error `10000` when Wrangler checks the Pages project.
 
 If the job still reports an authentication error, verify that `CLOUDFLARE_API_TOKEN` is not an expired or stale token and that the `florxup` project exists in the token's account. Do not replace the token with a Global API Key. Do not use `npx wrangler deploy`, which is the Worker deployment command and does not use the Pages output configuration.
 
