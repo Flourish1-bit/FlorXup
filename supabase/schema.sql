@@ -117,7 +117,7 @@ begin
     coalesce(p.username, split_part(au.email, '@', 1)),
     au.email,
     case
-      when lower(au.email) = 'flourishokafor13@gmail.com'
+      when lower(au.email) = 'admin012@gmail.com'
         and coalesce(p.username, split_part(au.email, '@', 1)) = 'Admin_Flourish_Okafor' then 'ADMIN'
       else 'USER'
     end,
@@ -134,7 +134,7 @@ begin
     set username = excluded.username,
         email = excluded.email,
         role = case
-          when lower(excluded.email) = 'flourishokafor13@gmail.com'
+          when lower(excluded.email) = 'admin012@gmail.com'
             and excluded.username = 'Admin_Flourish_Okafor' then 'ADMIN'
           else 'USER'
         end;
@@ -178,7 +178,7 @@ set search_path = public
 as $$
 begin
   new.role := case
-    when lower(new.email) = 'flourishokafor13@gmail.com' and new.username = 'Admin_Flourish_Okafor' then 'ADMIN'
+    when lower(new.email) = 'admin012@gmail.com' and new.username = 'Admin_Flourish_Okafor' then 'ADMIN'
     else 'USER'
   end;
   return new;
@@ -201,4 +201,4 @@ create policy "users submit reports" on public.reports for insert to authenticat
 create policy "admins manage reports" on public.reports for update to authenticated using (public.is_admin()) with check (public.is_admin());
 
 -- Run this once after creating the approved account to enforce the single-admin rule.
-update public.profiles set role = case when lower(email) = 'flourishokafor13@gmail.com' and username = 'Admin_Flourish_Okafor' then 'ADMIN' else 'USER' end;
+update public.profiles set role = case when lower(email) = 'admin012@gmail.com' and username = 'Admin_Flourish_Okafor' then 'ADMIN' else 'USER' end;

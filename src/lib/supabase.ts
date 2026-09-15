@@ -18,7 +18,7 @@ const STORAGE_MESSAGES_KEY = 'florxup_private_messages_v1';
 const STORAGE_GLOBAL_KEY = 'florxup_global_messages_v1';
 const STORAGE_GROUP_STATES_KEY = 'florxup_group_states_v1';
 const STORAGE_REPORTS_KEY = 'florxup_reports_v1';
-const ADMIN_EMAIL = 'flourishokafor13@gmail.com';
+const ADMIN_EMAIL = 'admin012@gmail.com';
 const ADMIN_USERNAME = 'Admin_Flourish_Okafor';
 
 // Initial verified system welcome announcement

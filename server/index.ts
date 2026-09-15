@@ -10,7 +10,7 @@ const app = express();
 const httpServer = http.createServer(app);
 const webSockets = new Set<WebSocket>();
 const store = new Store();
-const ADMIN_EMAIL = 'flourishokafor13@gmail.com';
+const ADMIN_EMAIL = 'admin012@gmail.com';
 const ADMIN_USERNAME = 'Admin_Flourish_Okafor';
 
 app.use(cors({ origin: config.corsOrigin }));
